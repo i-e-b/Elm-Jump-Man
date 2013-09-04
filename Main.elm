@@ -1,23 +1,47 @@
 import Keyboard
 import Window
 
+type Mario = {x:Float, y:Float, vx:Float, vy:Float, dir:String, jumpFrames:Int}
+type Controls = (Float, {x:Int, y:Int})
+
 -- MODEL
-mario = { x=0, y=0, vx=0, vy=0, dir="right" }
+mario : Mario
+mario = { x=0, y=0, vx=0, vy=0, dir="right", jumpFrames=0}
 
+{- To do:
+ - blocks & floors, jumping
+ - enemies and death
+ - squishing enemies
+ - bumping blocks from under-side
+ - going down pipes
+ - scenes, file loading?
+ -}
 
--- UPDATE -- ("m" is for Mario)
-jump {y} m = if y > 0 && m.y == 0 then { m | vy <- 5 } else m
-gravity t m = if m.y > 0 then { m | vy <- m.vy - t/4 } else m
+-- are we standing on a surface? If not, we are in free fall (possibly jumping)
+onSurface : Mario -> Bool
+onSurface m = m.y <= 0
+
+-- should be able to jump when on a surface (or enemy)
+-- can moderate height of jump by duration of 'up' press
+jump {y} m = if y > 0 && (m.y == 0 || m.jumpFrames < 7) then { m | vy <- 4, jumpFrames <- m.jumpFrames + 1 } else m
+
+-- gravity needs to stop on surface rather than zero
+gravity t m = if not (onSurface m) then { m | vy <- m.vy - t/4 } else {m | jumpFrames <- 0}
+
+-- these two are probably ok for now.
 physics t m = { m | x <- m.x + t*m.vx , y <- max 0 (m.y + t*m.vy) }
 walk {x} m = { m | vx <- toFloat x
                  , dir <- if | x < 0     -> "left"
                              | x > 0     -> "right"
                              | otherwise -> m.dir }
 
+-- Apply all the things!
+step : Controls -> Mario -> Mario
 step (t,dir) = physics t . walk dir . gravity t . jump dir
 
 
 -- DISPLAY
+render : (Int, Int) -> Mario -> Element 
 render (w',h') mario =
   let (w,h) = (toFloat w', toFloat h')
       verb = if | mario.y  >  0 -> "jump"
@@ -32,8 +56,10 @@ render (w',h') mario =
       ]
 
 -- MARIO
+input : Signal Controls
 input = let delta = lift (\t -> t/20) (fps 25)
         in sampleOn delta (lift2 (,) delta Keyboard.arrows)
 
+main : Signal Element
 main  = lift2 render Window.dimensions (foldp step mario input)
 
