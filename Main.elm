@@ -1,19 +1,23 @@
 import Keyboard
 import Window
+import Dict
 
+-- Game entities
 type Mario = {x:Float, y:Float, vx:Float, vy:Float, dir:String, jumpFrames:Int}
 type Controls = (Float, {x:Int, y:Int})
-type Block = {x:Float, y:Float}
-type Wall = [Block]
 
+-- First try at level structure: a Dict of x locations, each with a list of floor heights.
+-- Later, this should load levels over HTTP, and be a signal going into the game.
+-- Worlds are blocky, and each position relates to 20.0 pixels position
+type World = Dict.Dict Int [Int]
+world = Dict.fromList [(0,[3,1]),(1,[2])]
+
+-- Structural classes
 type Positional a = {a | x:Float, y:Float}
 
 -- MODEL
 mario : Mario
 mario = { x=0, y=0, vx=0, vy=0, dir="right", jumpFrames=0}
-
-world : Wall
-world = [{x=0, y=4}]
 
 {- To do:
  - blocks & floors, jumping
@@ -30,10 +34,15 @@ onSurface m = (m.y <= floorLevel m)
 
 -- nearest floor below us
 floorLevel : Mario -> Float
-floorLevel m = if 
-    | (nearEnough m {x=0, y=20}) -> 20
-    | otherwise -> 0
-
+floorLevel m =
+    let blockX = truncate (m.x / 20)
+        heights = map (\h->h*20) (Dict.findWithDefault [] blockX world) ++ [0]
+    in  head (filter (\h -> h <= m.y || h == 0) heights)
+{-    let floor = [
+    in  if
+        | (nearEnough m ()) -> 20
+        | otherwise -> 0
+-}
 
 nearEnough : Positional a -> Positional b -> Bool
 nearEnough u v = abs (u.x - v.x) < 10 && abs (u.y - v.y) < 10
