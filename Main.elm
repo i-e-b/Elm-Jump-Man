@@ -41,12 +41,12 @@ onSurface m = (m.y <= floorLevel m)
 -- nearest floor below us
 floorLevel : Mario -> Float
 floorLevel m =
-    let blockA = ceiling ((m.x-4) / blockScale)
-        blockB = floor (m.x / blockScale)
-        blockListA = Dict.findWithDefault [] (blockA) world
-        blockListB = Dict.findWithDefault [] (blockB) world
-        heights = map (\h-> h * blockScale) (blockListA ++ blockListB ++ [0])
-    in  head (filter (\h -> h <= m.y || h == 0) (heights))
+    let blockA = ceiling ((m.x - 2) / blockScale)
+        blockB = floor ((m.x + 2) / blockScale)
+        blockList = Dict.findWithDefault [] (blockA) world
+                 ++ Dict.findWithDefault [] (blockB) world
+        heights = map (\h-> h * blockScale) ((sortReverse blockList) ++ [0])
+    in  head (filter (\h -> h <= m.y || h <= 0) heights)
 
 -- should be able to jump when on a surface (or enemy)
 -- can moderate height of jump by duration of 'up' press
