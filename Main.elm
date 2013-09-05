@@ -1,6 +1,7 @@
 import Keyboard
 import Window
 import Dict
+import open Sort
 
 -- Game entities
 type Mario = {x:Float, y:Float, vx:Float, vy:Float, dir:String, jumpEnergy:Int}
@@ -10,8 +11,9 @@ type Controls = (Float, {x:Int, y:Int})
 -- Later, this should load levels over HTTP, and be a signal going into the game.
 -- Worlds are blocky, and each position relates to a block index.
 -- All blocks are the same size (blockScale)
+-- height lists MUST be in descending order
 type World = Dict.Dict Int [Int]
-world = Dict.fromList [(0,[3,1]),(1,[2])]
+world = Dict.fromList [(1,[3,1]),(2,[2]),(3,[3]),(4,[4]),(5,[5,1]),(6,[6,1])]
 blockScale = 16.0
 halfBlockScale = 8.0
 
@@ -39,12 +41,12 @@ onSurface m = (m.y <= floorLevel m)
 -- nearest floor below us
 floorLevel : Mario -> Float
 floorLevel m =
-    let blockX = truncate (m.x / blockScale)
-        heights = map (\h->h*blockScale) (Dict.findWithDefault [] blockX world) ++ [0]
-    in  head (filter (\h -> h <= m.y || h == 0) heights)
-
-nearEnough : Positional a -> Positional b -> Bool
-nearEnough u v = abs (u.x - v.x) < halfBlockScale && abs (u.y - v.y) < halfBlockScale
+    let blockA = ceiling ((m.x-4) / blockScale)
+        blockB = floor (m.x / blockScale)
+        blockListA = Dict.findWithDefault [] (blockA) world
+        blockListB = Dict.findWithDefault [] (blockB) world
+        heights = map (\h-> h * blockScale) (blockListA ++ blockListB ++ [0])
+    in  head (filter (\h -> h <= m.y || h == 0) (heights))
 
 -- should be able to jump when on a surface (or enemy)
 -- can moderate height of jump by duration of 'up' press
@@ -76,7 +78,9 @@ render (w',h') mario =
                 | mario.vx /= 0 -> "walk"
                 | otherwise     -> "stand"
       src  = "/imgs/mario/" ++ verb ++ "-" ++ mario.dir ++ ".gif"
-  in collage w' h' (
+  in 
+--    (asText mario) `above`
+    collage w' h' (
         renderBackground (w,h) world
         ++
         [toForm (image 35 35 src) |> move (mario.x, mario.y + 62 - h/2)]
