@@ -13,7 +13,7 @@ type Controls = (Float, {x:Int, y:Int})
 -- All blocks are the same size (blockScale)
 -- height lists MUST be in descending order
 type World = Dict.Dict Int [Int]
-world = Dict.fromList [(1,[3,1]),(2,[2]),(3,[3]),(4,[4]),(5,[5,1]),(6,[6,1])]
+world = Dict.fromList [(1,[10,3,1]),(2,[9,2]),(3,[8,3]),(4,[4]),(5,[5,1]),(6,[6,1]),(7,[6,1]),(8,[6,1])]
 blockScale = 16.0
 halfBlockScale = 8.0
 
@@ -41,12 +41,12 @@ onSurface m = (m.y <= floorLevel m)
 -- nearest floor below us
 floorLevel : Mario -> Float
 floorLevel m =
-    let blockA = ceiling ((m.x - 2) / blockScale)
-        blockB = floor ((m.x + 2) / blockScale)
+    let blockA = ceiling ((m.x - 1) / blockScale)
+        blockB = floor ((m.x + 1) / blockScale)
         blockList = Dict.findWithDefault [] (blockA) world
                  ++ Dict.findWithDefault [] (blockB) world
-        heights = map (\h-> h * blockScale) ((sortReverse blockList) ++ [0])
-    in  head (filter (\h -> h <= m.y || h <= 0) heights)
+        heights = map (\h-> h * blockScale) (blockList ++ [0])
+    in  (maximum) (filter (\h -> h <= m.y || h <= 0) heights)
 
 -- should be able to jump when on a surface (or enemy)
 -- can moderate height of jump by duration of 'up' press
