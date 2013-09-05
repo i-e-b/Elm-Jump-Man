@@ -6,6 +6,7 @@ import open Sort
 -- Game entities
 type Mario = {x:Float, y:Float, vx:Float, vy:Float, dir:String, jumpEnergy:Int}
 type Controls = (Float, {x:Int, y:Int})
+type Time = Float
 
 -- First try at level structure: a Dict of x locations, each with a list of floor heights.
 -- Later, this should load levels over HTTP, and be a signal going into the game.
@@ -16,6 +17,7 @@ type World = Dict.Dict Int [Int]
 world = Dict.fromList [(1,[10,3,1]),(2,[9,2]),(3,[8,3]),(4,[4]),(5,[5,1]),(6,[6,1]),(7,[6,1]),(8,[6,1])]
 blockScale = 16.0
 halfBlockScale = 8.0
+maxHeight = 65000.0 {- maximum height of a world -}
 
 -- Structural classes
 type Positional a = {a | x:Float, y:Float}
@@ -24,6 +26,7 @@ type Positional a = {a | x:Float, y:Float}
 maxJump = 7
 mario : Mario
 mario = { x=0, y=0, vx=0, vy=0, dir="right", jumpEnergy=maxJump}
+marioHead m = m.y + 60
 
 {- To do:
  - blocks & floors, jumping
@@ -38,15 +41,22 @@ mario = { x=0, y=0, vx=0, vy=0, dir="right", jumpEnergy=maxJump}
 onSurface : Mario -> Bool
 onSurface m = (m.y <= floorLevel m)
 
--- nearest floor below us
-floorLevel : Mario -> Float
-floorLevel m =
-    let blockA = ceiling ((m.x - 1) / blockScale)
-        blockB = floor ((m.x + 1) / blockScale)
+-- all floors in mario's x position
+heights : Mario -> [Float]
+heights m = 
+    let blockA = ceiling ((m.x - 1) / blockScale)   {- we can possibly overlap 2 blocks at a time -}
+        blockB = floor ((m.x + 1) / blockScale)     {- so we find both and take the highest below mario -}
         blockList = Dict.findWithDefault [] (blockA) world
                  ++ Dict.findWithDefault [] (blockB) world
-        heights = map (\h-> h * blockScale) (blockList ++ [0])
-    in  (maximum) (filter (\h -> h <= m.y || h <= 0) heights)
+    in  map (\h-> h * blockScale) ((maxHeight :: blockList) ++ [0])
+
+-- nearest floor below us
+floorLevel : Mario -> Float
+floorLevel m = maximum (filter (\h -> h <= m.y || h <= 0) (heights m))
+
+-- nearest floor above, minus block height
+ceilingLevel : Mario -> Float
+ceilingLevel m = minimum (filter (\h -> (h - blockScale) > m.y) (quicksort (heights m)))
 
 -- should be able to jump when on a surface (or enemy)
 -- can moderate height of jump by duration of 'up' press
@@ -59,7 +69,15 @@ jump {y} m = if
 gravity t m = if not (onSurface m) then { m | vy <- m.vy - t/4 } else {m | jumpEnergy <- maxJump}
 
 -- apply acceleration and constraints
-physics t m = { m | x <- m.x + t*m.vx , y <- max (floorLevel m) (m.y + t*m.vy) }
+physics : Time -> Mario -> Mario
+physics t m = 
+    let constrainedHeight = (marioHead m > ceilingLevel m) && m.vy > 0
+        x' = m.x + t*m.vx
+        vy' = if (constrainedHeight) then 0 else m.vy
+        y' = max (floorLevel m) (m.y + t*m.vy)
+    in  { m | x <- x', y <- y', vy <- vy'}
+
+-- apply walking (side-to-side) control, set direction for graphics
 walk {x} m = { m | vx <- toFloat x
                  , dir <- if | x < 0     -> "left"
                              | x > 0     -> "right"
