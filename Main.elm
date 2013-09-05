@@ -14,7 +14,7 @@ type Time = Float
 -- All blocks are the same size (blockScale)
 -- height lists MUST be in descending order
 type World = Dict.Dict Int [Int]
-world = Dict.fromList [(1,[10,3,1]),(2,[9,2]),(3,[8,3]),(4,[4]),(5,[5,1]),(6,[6,1]),(7,[6,1]),(8,[6,1])]
+world = Dict.fromList [(-3,[4]),(1,[10,3,1]),(2,[9,2]),(3,[8,3]),(4,[4]),(5,[5,1]),(6,[6,1]),(7,[6,1]),(8,[6,1])]
 blockScale = 16.0
 halfBlockScale = 8.0
 maxHeight = 65000.0 {- maximum height of a world -}
@@ -26,7 +26,7 @@ type Positional a = {a | x:Float, y:Float}
 maxJump = 7
 mario : Mario
 mario = { x=0, y=0, vx=0, vy=0, dir="right", jumpEnergy=maxJump}
-marioHead m = m.y + 60
+marioHead m = m.y + 28
 
 {- To do:
  - blocks & floors, jumping
@@ -44,19 +44,19 @@ onSurface m = (m.y <= floorLevel m)
 -- all floors in mario's x position
 heights : Mario -> [Float]
 heights m = 
-    let blockA = ceiling ((m.x - 1) / blockScale)   {- we can possibly overlap 2 blocks at a time -}
-        blockB = floor ((m.x + 1) / blockScale)     {- so we find both and take the highest below mario -}
+    let blockA = ceiling ((m.x - 2) / blockScale)   {- we can possibly overlap 2 blocks at a time -}
+        blockB = floor ((m.x + 2) / blockScale)     {- so we find both and take the highest below mario -}
         blockList = Dict.findWithDefault [] (blockA) world
                  ++ Dict.findWithDefault [] (blockB) world
-    in  map (\h-> h * blockScale) ((maxHeight :: blockList) ++ [0])
+    in  map (\h-> h * blockScale) blockList
 
 -- nearest floor below us
 floorLevel : Mario -> Float
-floorLevel m = maximum (filter (\h -> h <= m.y || h <= 0) (heights m))
+floorLevel m = maximum (filter (\h -> h <= m.y || h <= 0) (heights m)++[0])
 
 -- nearest floor above, minus block height
 ceilingLevel : Mario -> Float
-ceilingLevel m = minimum (filter (\h -> (h - blockScale) > m.y) (quicksort (heights m)))
+ceilingLevel m = minimum (filter (\h ->h>m.y) (map (\h->h - blockScale) (heights m)++[maxHeight]))
 
 -- should be able to jump when on a surface (or enemy)
 -- can moderate height of jump by duration of 'up' press
@@ -74,8 +74,9 @@ physics t m =
     let constrainedHeight = (marioHead m > ceilingLevel m) && m.vy > 0
         x' = m.x + t*m.vx
         vy' = if (constrainedHeight) then 0 else m.vy
-        y' = max (floorLevel m) (m.y + t*m.vy)
-    in  { m | x <- x', y <- y', vy <- vy'}
+        je' = if (constrainedHeight) then 0 else m.jumpEnergy
+        y' = min (max (floorLevel m) (m.y + t*m.vy)) ((ceilingLevel m)-24)
+    in  { m | x <- x', y <- y', vy <- vy', jumpEnergy <- je'}
 
 -- apply walking (side-to-side) control, set direction for graphics
 walk {x} m = { m | vx <- toFloat x
