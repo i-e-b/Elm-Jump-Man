@@ -12,7 +12,6 @@ type Time = Float
 -- Later, this should load levels over HTTP, and be a signal going into the game.
 -- Worlds are blocky, and each position relates to a block index.
 -- All blocks are the same size (blockScale)
--- height lists MUST be in descending order
 type World = Dict.Dict Int [Int]
 world = Dict.fromList [(-3,[4]),(1,[10,3,1]),(2,[9,2]),(3,[8,3]),(4,[4]),(5,[5,1]),(6,[6,1]),(7,[6,1]),(8,[5,1])]
 blockScale = 16.0
@@ -44,8 +43,9 @@ onSurface m = (m.y <= floorLevel m)
 -- all floors in mario's x position
 heights : Mario -> [Float]
 heights m = 
-    let blockA = ceiling ((m.x - 2) / blockScale)   {- we can possibly overlap 2 blocks at a time -}
-        blockB = floor ((m.x + 2) / blockScale)     {- so we find both and take the highest below mario -}
+    let s = if (m.vy == 0) then 4 else 2 {- much much smaller mario is than a block -}
+        blockA = ceiling ((m.x - s) / blockScale)   {- we can possibly overlap 2 blocks at a time -}
+        blockB = floor ((m.x + s) / blockScale)     {- so we find both and take the highest below mario -}
         blockList = Dict.findWithDefault [] (blockA) world
                  ++ Dict.findWithDefault [] (blockB) world
     in  map (\h-> h * blockScale) blockList
@@ -70,15 +70,15 @@ gravity t m = if not (onSurface m) then { m | vy <- m.vy - t/4 } else {m | jumpE
 
 
 -- given old mario, new mario, return true if mario can't move to new position
-blockedX : Mario -> Mario -> Bool
-blockedX m dm =
+blockedX : Mario -> Bool
+blockedX dm =
     let dmh = {dm | y <- if (dm.vx <= 0) then (marioHead dm) else (dm.y + blockScale)}
         constrainedWidth = 
             (floorLevel dm /= floorLevel dmh) || (ceilingLevel dm /= ceilingLevel dmh)
-    in  constrainedWidth && (m.vx /= 0)
+    in  constrainedWidth && (dm.vx /= 0)
 
-blockedY : Mario -> Mario -> Bool
-blockedY m dm = (marioHead m > ceilingLevel m) && m.vy > 0
+blockedY : Mario -> Bool
+blockedY m = (marioHead m > ceilingLevel m) && m.vy > 0
 
 -- apply acceleration and constraints
 physics : Time -> Mario -> Mario
@@ -87,14 +87,14 @@ physics t m =
         dy = t * m.vy
         dm = {m | x <- m.x + dx, y <- m.y - dy} {- proposed new mario location -}
 
-        wall = blockedX m dm
-        ceil = blockedY m dm
+        wall = blockedX dm
+        ceil = blockedY m
 
         vy' = if (ceil) then 0 else m.vy
         je' = if (ceil) then 0 else m.jumpEnergy
         vx' = if (wall) then 0 else m.vx
         x' = m.x + t * vx'
-        y' = min (max (floorLevel m) (m.y + t * m.vy)) ((ceilingLevel m)-24)
+        y' = min (max (floorLevel m) (m.y + t * vy')) ((ceilingLevel m)-24)
 
         vy'' = if (m.y == y') then 0 else vy'
     in  { m | x <- x', y <- max 0 y', vy <- vy'', vx <- vx', jumpEnergy <- je'}
@@ -114,7 +114,7 @@ step (t,dir) = physics t . walk dir . gravity t . jump dir
 render : (Int, Int) -> Mario -> Element 
 render (w',h') mario =
   let (w,h) = (toFloat w', toFloat h')
-      verb = if | mario.y  >  floorLevel mario -> "jump"
+      verb = if | not (onSurface mario) -> "jump"
                 | mario.vx /= 0 -> "walk"
                 | otherwise     -> "stand"
       src  = "/imgs/mario/" ++ verb ++ "-" ++ mario.dir ++ ".gif"
