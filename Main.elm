@@ -14,7 +14,7 @@ type Time = Float
 -- All blocks are the same size (blockScale)
 -- height lists MUST be in descending order
 type World = Dict.Dict Int [Int]
-world = Dict.fromList [(-3,[4]),(1,[10,3,1]),(2,[9,2]),(3,[8,3]),(4,[4]),(5,[5,1]),(6,[6,1]),(7,[6,1]),(8,[6,1])]
+world = Dict.fromList [(-3,[4]),(1,[10,3,1]),(2,[9,2]),(3,[8,3]),(4,[4]),(5,[5,1]),(6,[6,1]),(7,[6,1]),(8,[5,1])]
 blockScale = 16.0
 halfBlockScale = 8.0
 maxHeight = 65000.0 {- maximum height of a world -}
@@ -52,7 +52,7 @@ heights m =
 
 -- nearest floor below us
 floorLevel : Mario -> Float
-floorLevel m = maximum (filter (\h -> h <= m.y || h <= 0) (heights m)++[0])
+floorLevel m = maximum ((filter (\h -> h <= m.y) (heights m))++[0])
 
 -- nearest floor above, minus block height
 ceilingLevel : Mario -> Float
@@ -68,15 +68,37 @@ jump {y} m = if
 -- fall unless sitting on a surface
 gravity t m = if not (onSurface m) then { m | vy <- m.vy - t/4 } else {m | jumpEnergy <- maxJump}
 
+
+-- given old mario, new mario, return true if mario can't move to new position
+blockedX : Mario -> Mario -> Bool
+blockedX m dm =
+    let dmh = {dm | y <- m.y + blockScale}
+        mh = {m | y <- m.y + blockScale}
+        constrainedWidth = 
+            (floorLevel dm /= floorLevel dmh) || (ceilingLevel dm /= ceilingLevel dmh)
+    in  constrainedWidth && (m.vx /= 0)
+
+blockedY : Mario -> Mario -> Bool
+blockedY m dm = (marioHead m > ceilingLevel m) && m.vy > 0
+
 -- apply acceleration and constraints
 physics : Time -> Mario -> Mario
 physics t m = 
-    let constrainedHeight = (marioHead m > ceilingLevel m) && m.vy > 0
-        x' = m.x + t*m.vx
-        vy' = if (constrainedHeight) then 0 else m.vy
-        je' = if (constrainedHeight) then 0 else m.jumpEnergy
-        y' = min (max (floorLevel m) (m.y + t*m.vy)) ((ceilingLevel m)-24)
-    in  { m | x <- x', y <- y', vy <- vy', jumpEnergy <- je'}
+    let dx = t * m.vx
+        dy = t * m.vy
+        dm = {m | x <- m.x + dx, y <- m.y - dy} {- proposed new mario location -}
+
+        wall = blockedX m dm
+        ceil = blockedY m dm
+
+        vy' = if (ceil) then 0 else m.vy
+        je' = if (ceil) then 0 else m.jumpEnergy
+        vx' = if (wall) then 0 else m.vx
+        x' = m.x + t * vx'
+        y' = min (max (floorLevel m) (m.y + t * m.vy)) ((ceilingLevel m)-24)
+
+        vy'' = if (m.y == y') then 0 else vy'
+    in  { m | x <- x', y <- max 0 y', vy <- vy'', vx <- vx', jumpEnergy <- je'}
 
 -- apply walking (side-to-side) control, set direction for graphics
 walk {x} m = { m | vx <- toFloat x
