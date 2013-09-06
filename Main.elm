@@ -13,7 +13,13 @@ type Enemy = Denizen ({})
 -- Worlds are blocky, and each position relates to a block index.
 -- All blocks are the same size (blockScale)
 type World = Dict.Dict Int [Int]
-world = Dict.fromList [(-8,[4]),(-6,[1,2,3,4,5,6]),(-3,[4]),(1,[10,3,1]),(2,[9,2]),(3,[8,3]),(4,[4]),(5,[5,1]),(6,[6,1]),(7,[6,1]),(8,[5,1])]
+defaultWorld = Dict.fromList [
+    (-8,[4]),(-6,[1,2,3,4,5,6])
+    ,(-3,[4]),(1,[10,3,1]),(2,[9,2])
+    ,(3,[8,3]),(4,[4]),(5,[5,1])
+    ,(6,[6,1]),(7,[6,1]),(8,[5,1])
+    ]
+
 blockScale = 16.0
 halfBlockScale = 8.0
 maxHeight = 65000.0 {- maximum height of a world -}
@@ -23,12 +29,11 @@ type Positional a = {a | x:Float, y:Float}
 
 -- Game state
 type Scene = {world:World, mario:Mario, enemies:[Enemy]}
-scene_world_1_1 = {world = world, mario = mario, enemies = []}
+scene_world_1_1 = {world = defaultWorld, mario = defaultMario, enemies = []}
 
 -- MODEL
 maxJump = 7
-mario : Mario
-mario = { x=0, y=0, vx=0, vy=0, dir=1, jumpEnergy=maxJump}
+defaultMario = { x=0, y=0, vx=0, vy=0, dir=1, jumpEnergy=maxJump}
 marioHead m = m.y + 28
 
 {- To do:
@@ -40,110 +45,120 @@ marioHead m = m.y + 28
  -}
 
 -- are we standing on a surface? If not, we are in free fall (possibly jumping)
-onSurface : Mario -> Bool
-onSurface m = (m.y <= floorLevel m)
+onSurface : Scene -> Mario -> Bool
+onSurface sc m = (m.y <= floorLevel sc m)
 
 -- all floors in mario's x position
-heights : Mario -> [Float]
-heights m = 
+heights : Scene -> Float -> [Float]
+heights sc x =
     let s = 2 {- how much smaller mario is than a block -}
-        blockA = ceiling ((m.x - s) / blockScale)   {- we can possibly overlap 2 blocks at a time -}
-        blockB = floor ((m.x + s) / blockScale)     {- so we find both and take the highest below mario -}
-        blockList = Dict.findWithDefault [] (blockA) world
-                 ++ Dict.findWithDefault [] (blockB) world
-    in  map (\h-> h * blockScale) blockList
+        blockA = ceiling ((x - s) / blockScale)   {- we can possibly overlap 2 blocks at a time -}
+        blockB = floor ((x + s) / blockScale)     {- so we find both and take the highest below mario -}
+        blockList = Dict.findWithDefault [] (blockA) sc.world
+                 ++ Dict.findWithDefault [] (blockB) sc.world
+    in  map (\h-> toFloat h * blockScale) blockList
 
 -- nearest floor below us
-floorLevel : Mario -> Float
-floorLevel m = 
-    let stepHeight = m.y + 4 {- mario can step up a bit. Makes the game feel smoother -}
-        allHeights = heights m
+floorLevel : Scene -> Mario -> Float
+floorLevel sc m =
+    let stepHeight = m.y + 4.0 {- mario can step up a bit. Makes the game feel smoother -}
+        allHeights = heights sc m.x
     in  maximum ((filter (\h -> h <= stepHeight) allHeights)++[0])
 
 -- nearest floor above, minus block height
-ceilingLevel : Mario -> Float
-ceilingLevel m = minimum (filter (\h ->h>m.y) (map (\h->h - blockScale) (heights m)++[maxHeight]))
+ceilingLevel : Scene -> Mario -> Float
+ceilingLevel sc m = minimum (filter (\h -> h > m.y) (map (\h -> h - blockScale) (heights sc m.x)++[maxHeight]))
 
 -- should be able to jump when on a surface (or enemy)
 -- can moderate height of jump by duration of 'up' press
-jump {y} m = if
-    | y > 0 && (onSurface m || m.jumpEnergy > 0) -> { m | vy <- 4, jumpEnergy <- m.jumpEnergy - 1 }
-    | y <= 0 && not (onSurface m) -> {m | jumpEnergy <- 0}
-    | otherwise -> m
+jump {y} sc = 
+    let m = sc.mario
+        m' = if
+            | y > 0 && (onSurface sc m || m.jumpEnergy > 0) -> { m | vy <- 4, jumpEnergy <- m.jumpEnergy - 1 }
+            | y <= 0 && not (onSurface sc m) -> {m | jumpEnergy <- 0}
+            | otherwise -> m
+    in {sc | mario <- m'}
 
 -- fall unless sitting on a surface
-gravity t m = if not (onSurface m) then { m | vy <- m.vy - t/4 } else {m | jumpEnergy <- maxJump}
+gravity t sc = 
+    let m = sc.mario
+        m' = if not (onSurface sc m) then { m | vy <- m.vy - t/4 } else {m | jumpEnergy <- maxJump}
+    in {sc | mario <- m'}
 
 
--- given old mario, new mario, return true if mario can't move to new position
-blockedX : Mario -> Bool
-blockedX dm =
-    let dmh = {dm | y <- if (dm.vx <= 0) then (marioHead dm) else (dm.y + blockScale)}
-        constrainedWidth = 
-            (floorLevel dm /= floorLevel dmh) || (ceilingLevel dm /= ceilingLevel dmh)
-    in  constrainedWidth && (dm.vx /= 0)
+-- return true if mario can't move to new position
+blockedX : Scene -> Mario -> Bool
+blockedX s m =
+    let mh = {m | y <- if (m.vx <= 0) then (marioHead m) else (m.y + blockScale)}
+        constrainedWidth = (floorLevel s m /= floorLevel s mh) || (ceilingLevel s m /= ceilingLevel s mh)
+    in  constrainedWidth && (m.vx /= 0)
 
-blockedY : Mario -> Bool
-blockedY m = (marioHead m > ceilingLevel m) && m.vy > 0
+blockedY : Scene -> Mario -> Bool
+blockedY s m = (marioHead m > ceilingLevel s m) && m.vy > 0
 
 -- apply acceleration and constraints
-physics : Time -> Mario -> Mario
-physics t m = 
-    let dx = t * m.vx
+physics : Time -> Scene -> Scene
+physics t s = 
+    let m = s.mario
+        dx = t * m.vx
         dy = t * m.vy
 
-        wall = blockedX {m | x <- m.x + dx}
-        ceil = blockedY m
-        stuck = (wall && blockedX m) && (m.vy == 0)
+        wall = blockedX s {m | x <- m.x + dx}
+        ceil = blockedY s m
+        stuck = (wall && blockedX s m) && (m.vy == 0)
 
         vy' = if (ceil) then 0 else m.vy
         je' = if (ceil) then 0 else m.jumpEnergy
         vx' = if wall then 0 else m.vx
-        x' = if (stuck) then (m.x - t * vx') else m.x + t * vx'
-        y' = min (max (floorLevel m) (m.y + t * vy')) ((ceilingLevel m)-24)
+        x' = if (stuck) then (m.x - t * m.vx) else m.x + t * vx'
+        y' = min (max (floorLevel s m) (m.y + t * vy')) ((ceilingLevel s m)-24)
 
         vy'' = if (m.y == y') then 0 else vy'
-    in  { m | x <- x', y <- max 0 y', vy <- vy'', vx <- vx', jumpEnergy <- je'}
+        newMario = { m | x <- x', y <- max 0 y', vy <- vy'', vx <- vx', jumpEnergy <- je'}
+    in {s | mario <- newMario}
 
 -- apply walking (side-to-side) control, set direction for graphics
-walk {x} m = { m | vx <- toFloat x, dir <- if (x ==0) then m.dir else toFloat x}
+walk {x} scene = 
+    let m = scene.mario
+        m' = { m | vx <- toFloat x, dir <- if (x ==0) then m.dir else toFloat x}
+    in  {scene | mario <- m'}
 
 -- Apply all the things!
-step : Controls -> Mario -> Mario
+step : Controls -> Scene -> Scene
 step (t,dir) = physics t . walk dir . gravity t . jump dir
 
 
 -- DISPLAY
-render : (Int, Int) -> Mario -> Element 
-render (w',h') mario =
+render : (Int, Int) -> Scene -> Element 
+render (w',h') scene =
     let (w,h) = (toFloat w', toFloat h')
-        verb = if | not (onSurface mario) -> "jump"
+        mario = scene.mario
+        verb = if | not (onSurface scene mario) -> "jump"
                   | mario.vx /= 0 -> "walk"
                   | otherwise     -> "stand"
         dir = if (mario.dir > 0) then "right" else "left"
         src  = "/imgs/mario/" ++ verb ++ "-" ++ dir ++ ".gif"
     in 
---    (asText mario) `above`
+--        (asText mario) `above`
         collage w' h' (
-            renderBackground (w,h) world
+            renderBackground (w,h) scene.world
             ++
             [toForm (image 35 35 src) |> move (mario.x, mario.y + 62 - h/2)]
             ++
-            renderBlocks (w,h) world
+            renderBlocks (w,h) scene.world
             )
 
 renderBlocks : (Float, Float) -> World -> [Form]
 renderBlocks (w',h') w = {- hard coded to start -}
     let block x y = toForm (image 16 16 "/imgs/world/smash-block.png") 
                     |> move ((blockScale * x), (blockScale * y) + 40 - h'/2)
-        allBlocks = concatMap (\(x, ys) -> map (\y -> block (toFloat x) (toFloat y)) ys) (Dict.toList w)
-    in  allBlocks
+    in  concatMap (\(x, ys) -> map (\y -> block (toFloat x) (toFloat y)) ys) (Dict.toList w)
 
 renderBackground : (Float,Float) -> World -> [Form]
 renderBackground (w,h) wr = 
     [ rect w h  |> filled (rgb 174 238 238)
     , rect w 50 |> filled (rgb 74 163 41)
-                  |> move (0, 24 - h/2)
+                |> move (0, 24 - h/2)
     ]
 
 -- Hooking everything up...
@@ -152,5 +167,5 @@ input = let delta = lift (\t -> t/20) (fps 25)
         in sampleOn delta (lift2 (,) delta Keyboard.arrows)
 
 main : Signal Element
-main  = lift2 render Window.dimensions (foldp step mario input)
+main = lift2 render Window.dimensions (foldp step scene_world_1_1 input)
 
