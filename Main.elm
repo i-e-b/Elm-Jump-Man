@@ -4,7 +4,7 @@ import Dict
 import open Sort
 
 -- Game entities
-type Denizen a = {a | x:Float, y:Float, vx:Float, vy:Float, dir:String}
+type Denizen a = {a | x:Float, y:Float, vx:Float, vy:Float, dir:Float}
 type Mario = Denizen ({jumpEnergy:Int})
 type Controls = (Float, {x:Int, y:Int})
 type Time = Float
@@ -13,7 +13,7 @@ type Enemy = Denizen ({})
 -- Worlds are blocky, and each position relates to a block index.
 -- All blocks are the same size (blockScale)
 type World = Dict.Dict Int [Int]
-world = Dict.fromList [(-3,[4]),(1,[10,3,1]),(2,[9,2]),(3,[8,3]),(4,[4]),(5,[5,1]),(6,[6,1]),(7,[6,1]),(8,[5,1])]
+world = Dict.fromList [(-8,[4]),(-6,[1,2,3,4,5,6]),(-3,[4]),(1,[10,3,1]),(2,[9,2]),(3,[8,3]),(4,[4]),(5,[5,1]),(6,[6,1]),(7,[6,1]),(8,[5,1])]
 blockScale = 16.0
 halfBlockScale = 8.0
 maxHeight = 65000.0 {- maximum height of a world -}
@@ -28,7 +28,7 @@ scene_world_1_1 = {world = world, mario = mario, enemies = []}
 -- MODEL
 maxJump = 7
 mario : Mario
-mario = { x=0, y=0, vx=0, vy=0, dir="right", jumpEnergy=maxJump}
+mario = { x=0, y=0, vx=0, vy=0, dir=1, jumpEnergy=maxJump}
 marioHead m = m.y + 28
 
 {- To do:
@@ -46,7 +46,7 @@ onSurface m = (m.y <= floorLevel m)
 -- all floors in mario's x position
 heights : Mario -> [Float]
 heights m = 
-    let s = if (m.vy == 0) then 4 else 2 {- much much smaller mario is than a block -}
+    let s = 2 {- how much smaller mario is than a block -}
         blockA = ceiling ((m.x - s) / blockScale)   {- we can possibly overlap 2 blocks at a time -}
         blockB = floor ((m.x + s) / blockScale)     {- so we find both and take the highest below mario -}
         blockList = Dict.findWithDefault [] (blockA) world
@@ -55,7 +55,10 @@ heights m =
 
 -- nearest floor below us
 floorLevel : Mario -> Float
-floorLevel m = maximum ((filter (\h -> h <= m.y) (heights m))++[0])
+floorLevel m = 
+    let stepHeight = m.y + 4 {- mario can step up a bit. Makes the game feel smoother -}
+        allHeights = heights m
+    in  maximum ((filter (\h -> h <= stepHeight) allHeights)++[0])
 
 -- nearest floor above, minus block height
 ceilingLevel : Mario -> Float
@@ -88,25 +91,22 @@ physics : Time -> Mario -> Mario
 physics t m = 
     let dx = t * m.vx
         dy = t * m.vy
-        dm = {m | x <- m.x + dx, y <- m.y - dy} {- proposed new mario location -}
 
-        wall = blockedX dm
+        wall = blockedX {m | x <- m.x + dx}
         ceil = blockedY m
+        stuck = (wall && blockedX m) && (m.vy == 0)
 
         vy' = if (ceil) then 0 else m.vy
         je' = if (ceil) then 0 else m.jumpEnergy
-        vx' = if (wall) then 0 else m.vx
-        x' = m.x + t * vx'
+        vx' = if wall then 0 else m.vx
+        x' = if (stuck) then (m.x - t * vx') else m.x + t * vx'
         y' = min (max (floorLevel m) (m.y + t * vy')) ((ceilingLevel m)-24)
 
         vy'' = if (m.y == y') then 0 else vy'
     in  { m | x <- x', y <- max 0 y', vy <- vy'', vx <- vx', jumpEnergy <- je'}
 
 -- apply walking (side-to-side) control, set direction for graphics
-walk {x} m = { m | vx <- toFloat x
-                 , dir <- if | x < 0     -> "left"
-                             | x > 0     -> "right"
-                             | otherwise -> m.dir }
+walk {x} m = { m | vx <- toFloat x, dir <- if (x ==0) then m.dir else toFloat x}
 
 -- Apply all the things!
 step : Controls -> Mario -> Mario
@@ -116,20 +116,21 @@ step (t,dir) = physics t . walk dir . gravity t . jump dir
 -- DISPLAY
 render : (Int, Int) -> Mario -> Element 
 render (w',h') mario =
-  let (w,h) = (toFloat w', toFloat h')
-      verb = if | not (onSurface mario) -> "jump"
-                | mario.vx /= 0 -> "walk"
-                | otherwise     -> "stand"
-      src  = "/imgs/mario/" ++ verb ++ "-" ++ mario.dir ++ ".gif"
-  in 
+    let (w,h) = (toFloat w', toFloat h')
+        verb = if | not (onSurface mario) -> "jump"
+                  | mario.vx /= 0 -> "walk"
+                  | otherwise     -> "stand"
+        dir = if (mario.dir > 0) then "right" else "left"
+        src  = "/imgs/mario/" ++ verb ++ "-" ++ dir ++ ".gif"
+    in 
 --    (asText mario) `above`
-    collage w' h' (
-        renderBackground (w,h) world
-        ++
-        [toForm (image 35 35 src) |> move (mario.x, mario.y + 62 - h/2)]
-        ++
-        renderBlocks (w,h) world
-        )
+        collage w' h' (
+            renderBackground (w,h) world
+            ++
+            [toForm (image 35 35 src) |> move (mario.x, mario.y + 62 - h/2)]
+            ++
+            renderBlocks (w,h) world
+            )
 
 renderBlocks : (Float, Float) -> World -> [Form]
 renderBlocks (w',h') w = {- hard coded to start -}
