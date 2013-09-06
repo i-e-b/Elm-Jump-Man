@@ -4,12 +4,12 @@ import Dict
 import open Sort
 
 -- Game entities
-type Mario = {x:Float, y:Float, vx:Float, vy:Float, dir:String, jumpEnergy:Int}
+type Denizen a = {a | x:Float, y:Float, vx:Float, vy:Float, dir:String}
+type Mario = Denizen ({jumpEnergy:Int})
 type Controls = (Float, {x:Int, y:Int})
 type Time = Float
+type Enemy = Denizen ({})
 
--- First try at level structure: a Dict of x locations, each with a list of floor heights.
--- Later, this should load levels over HTTP, and be a signal going into the game.
 -- Worlds are blocky, and each position relates to a block index.
 -- All blocks are the same size (blockScale)
 type World = Dict.Dict Int [Int]
@@ -21,6 +21,10 @@ maxHeight = 65000.0 {- maximum height of a world -}
 -- Structural classes
 type Positional a = {a | x:Float, y:Float}
 
+-- Game state
+type Scene = {world:World, mario:Mario, enemies:[Enemy]}
+scene_world_1_1 = {world = world, mario = mario, enemies = []}
+
 -- MODEL
 maxJump = 7
 mario : Mario
@@ -28,7 +32,6 @@ mario = { x=0, y=0, vx=0, vy=0, dir="right", jumpEnergy=maxJump}
 marioHead m = m.y + 28
 
 {- To do:
- - blocks & floors, jumping
  - enemies and death
  - squishing enemies
  - bumping blocks from under-side
