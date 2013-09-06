@@ -72,8 +72,7 @@ gravity t m = if not (onSurface m) then { m | vy <- m.vy - t/4 } else {m | jumpE
 -- given old mario, new mario, return true if mario can't move to new position
 blockedX : Mario -> Mario -> Bool
 blockedX m dm =
-    let dmh = {dm | y <- m.y + blockScale}
-        mh = {m | y <- m.y + blockScale}
+    let dmh = {dm | y <- if (dm.vx <= 0) then (marioHead dm) else (dm.y + blockScale)}
         constrainedWidth = 
             (floorLevel dm /= floorLevel dmh) || (ceilingLevel dm /= ceilingLevel dmh)
     in  constrainedWidth && (m.vx /= 0)
