@@ -6,7 +6,8 @@ import open Sort
 -- Game entities
 type Denizen a = {a | x:Float, y:Float, vx:Float, vy:Float, dir:Float, jumpEnergy:Int}
 type Mario = Denizen ({})
-type Controls = (Float, {x:Int, y:Int})
+type IVec = {x:Int, y:Int}
+type Controls = (Float, IVec)
 type Time = Float
 type Enemy = Denizen ({})
 
@@ -71,19 +72,14 @@ ceilingLevel sc m = minimum (filter (\h -> h > m.y) (map (\h -> h - blockScale) 
 
 -- should be able to jump when on a surface (or enemy)
 -- can moderate height of jump by duration of 'up' press
-jump {y} sc = 
-    let m = sc.mario
-        m' = if
-            | y > 0 && (onSurface sc m || m.jumpEnergy > 0) -> { m | vy <- 4, jumpEnergy <- m.jumpEnergy - 1 }
-            | y <= 0 && not (onSurface sc m) -> {m | jumpEnergy <- 0}
-            | otherwise -> m
-    in {sc | mario <- m'}
+jump : IVec -> Scene -> Denizen {} -> Denizen {}
+jump {y} sc m = 
+        if | y > 0 && (onSurface sc m || m.jumpEnergy > 0) -> {m| vy <- 4, jumpEnergy <- m.jumpEnergy - 1}
+           | y <= 0 && not (onSurface sc m) -> {m | jumpEnergy <- 0}
+           | otherwise -> m
 
 -- fall unless sitting on a surface
-gravity t sc = 
-    let m = sc.mario
-        m' = if not (onSurface sc m) then { m | vy <- m.vy - t/4 } else {m | jumpEnergy <- maxJump}
-    in {sc | mario <- m'}
+gravity t sc m = if not (onSurface sc m) then { m | vy <- m.vy - t/4 } else {m | jumpEnergy <- maxJump}
 
 
 -- return true if mario can't move to new position
@@ -122,8 +118,9 @@ walk {x} m = { m | vx <- toFloat x, dir <- if (x ==0) then m.dir else toFloat x}
 -- Apply all the things!
 step : Controls -> Scene -> Scene
 step (t,dir) scene = 
-    let applied = (gravity t . jump dir) scene
-    in {applied | mario <- physics t applied (walk dir applied.mario)}
+    let controlMario = walk dir . jump dir scene
+        updateDenizen = physics t scene . gravity t scene
+    in {scene | mario <- updateDenizen(controlMario scene.mario)}
 
 
 -- DISPLAY
