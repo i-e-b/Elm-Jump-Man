@@ -4,8 +4,8 @@ import Dict
 import open Sort
 
 -- Game entities
-type Denizen a = {a | x:Float, y:Float, vx:Float, vy:Float, dir:Float}
-type Mario = Denizen ({jumpEnergy:Int})
+type Denizen a = {a | x:Float, y:Float, vx:Float, vy:Float, dir:Float, jumpEnergy:Int}
+type Mario = Denizen ({})
 type Controls = (Float, {x:Int, y:Int})
 type Time = Float
 type Enemy = Denizen ({})
@@ -97,10 +97,9 @@ blockedY : Scene -> Mario -> Bool
 blockedY s m = (marioHead m > ceilingLevel s m) && m.vy > 0
 
 -- apply acceleration and constraints
-physics : Time -> Scene -> Scene
-physics t s = 
-    let m = s.mario
-        dx = t * m.vx
+physics : Time -> Scene -> Denizen {} -> Denizen {}
+physics t s m = 
+    let dx = t * m.vx
         dy = t * m.vy
 
         wall = blockedX s {m | x <- m.x + dx}
@@ -114,18 +113,17 @@ physics t s =
         y' = min (max (floorLevel s m) (m.y + t * vy')) ((ceilingLevel s m)-24)
 
         vy'' = if (m.y == y') then 0 else vy'
-        newMario = { m | x <- x', y <- max 0 y', vy <- vy'', vx <- vx', jumpEnergy <- je'}
-    in {s | mario <- newMario}
+    in  { m | x <- x', y <- max 0 y', vy <- vy'', vx <- vx', jumpEnergy <- je'}
 
 -- apply walking (side-to-side) control, set direction for graphics
-walk {x} scene = 
-    let m = scene.mario
-        m' = { m | vx <- toFloat x, dir <- if (x ==0) then m.dir else toFloat x}
-    in  {scene | mario <- m'}
+--walk : {x,y} -> Mario -> Mario
+walk {x} m = { m | vx <- toFloat x, dir <- if (x ==0) then m.dir else toFloat x}
 
 -- Apply all the things!
 step : Controls -> Scene -> Scene
-step (t,dir) = physics t . walk dir . gravity t . jump dir
+step (t,dir) scene = 
+    let applied = (gravity t . jump dir) scene
+    in {applied | mario <- physics t applied (walk dir applied.mario)}
 
 
 -- DISPLAY
