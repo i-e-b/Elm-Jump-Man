@@ -9,7 +9,7 @@ type Mario = Denizen ({})
 type IVec = {x:Int, y:Int}
 type Controls = (Float, IVec)
 type Time = Float
-type Enemy = Denizen ({})
+type Enemy = Denizen {ai:World -> Denizen a -> Denizen a}
 
 -- Worlds are blocky, and each position relates to a block index.
 -- All blocks are the same size (blockScale)
@@ -28,15 +28,18 @@ maxHeight = 65000.0 {- maximum height of a world -}
 -- Structural classes
 type Positional a = {a | x:Float, y:Float}
 
--- Game state
-type Scene = {world:World, mario:Mario, enemies:[Enemy]}
-scene_world_1_1 = {world = defaultWorld, mario = defaultMario, enemies = []}
-
 -- MODEL
 maxJump = 7
 defaultMario = { x=0, y=0, vx=0, vy=0, dir=1, jumpEnergy=maxJump}
 marioHead m = m.y + 28
 
+goombaAI : World -> Enemy -> Enemy
+goombaAI w e = e
+defaultGoomba = {x= 4,y=0,vx=1, vy=0, dir=1, jumpEnergy=0, ai=goombaAI}
+
+-- Game state
+type Scene = {world:World, mario:Mario, enemies:[Enemy]}
+scene_world_1_1 = {world = defaultWorld, mario = defaultMario, enemies = [defaultGoomba]}
 {- To do:
  - enemies and death
  - squishing enemies
