@@ -10,7 +10,7 @@ type IVec = {x:Int, y:Int}
 type Controls = (Float, IVec)
 type Time = Float
 -- type AiActor = Scene -> Enemy -> Enemy
-type Enemy = Denizen {ai:World -> Denizen a -> Denizen a}  {- Elm doesn't allow us to recursively define functions inside dependent types, so we have to fake it with Denizen & World, rather than scene and Enemy as we'd like -}
+type Enemy = Denizen a  {- Elm doesn't allow us to recursively define functions inside dependent types, so we have to fake it with Denizen & World, rather than scene and Enemy as we'd like -}
 
 -- Worlds are blocky, and each position relates to a block index.
 -- All blocks are the same size (blockScale)
@@ -35,8 +35,8 @@ defaultMario = { x=0, y=0, vx=0, vy=0, dir=1, jumpEnergy=maxJump}
 marioHead m = m.y + 28
 
 --goombaAI : World -> Denizen a -> Denizen a
-goombaAI w e = if (blockedX w e) then {e| dir <- (-e.dir), vx <- (-e.dir)} else e
-defaultGoomba = {x= 4,y=0,vx=1, vy=0, dir=1, jumpEnergy=0, ai=goombaAI}
+goombaAI w e = if (blockedX w {e|x <- e.x+e.dir}) then {e| dir <- (-e.dir), vx <- (-e.dir / 2)} else e
+defaultGoomba = {x=-16,y=0,vx=-0.5, vy=0, dir=-1, jumpEnergy=0}
 
 -- Game state
 type Scene = {world:World, mario:Mario, enemies:[Enemy]}
@@ -125,8 +125,9 @@ step : Controls -> Scene -> Scene
 step (t,dir) scene = 
     let controlMario = walk dir . jump dir scene
         updateDenizen = physics t scene . gravity t scene
-    in {scene | mario <- updateDenizen(controlMario scene.mario)}
---    in {scene | mario <- updateDenizen(controlMario scene.mario), enemies <- map (\x -> x.ai(x)) scene.enemies}
+--    in {scene | mario <- updateDenizen(controlMario scene.mario)}
+        updateGoomba = (goombaAI scene.world) . updateDenizen
+    in {scene | mario <- updateDenizen(controlMario scene.mario), enemies <- map (updateGoomba) scene.enemies}
 
 
 -- DISPLAY
@@ -141,6 +142,7 @@ render (w',h') scene =
         src  = "/imgs/mario/" ++ verb ++ "-" ++ dir ++ ".gif"
     in 
 --        (asText mario) `above`
+--        (asText scene.enemies) `above`
         collage w' h' (
             renderBackground (w,h) scene.world
             ++
