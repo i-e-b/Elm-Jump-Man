@@ -24,7 +24,7 @@ type Positional a = {a | x:Float, y:Float}
 defaultMario = { x=0, y=0, vx=0, vy=0, dir=1, jumpEnergy=maxJump}
 
 goombaAI : World -> Denizen -> Denizen
-goombaAI w e = if (blockedX w {e|x <- e.x+e.dir}) then {e| dir <- (-e.dir), vx <- (-e.dir / 2)} else e
+goombaAI w e = if (blockedX w {e|x <- e.x+e.dir}) then {e| dir <- (-e.dir), vx <- (-e.dir / 2)} else {e|vx<-(e.dir/2)}
 
 defaultGoomba = {x=-16,y=0,vx=-0.5, vy=0, dir=-1, jumpEnergy=0}
 
@@ -41,13 +41,17 @@ scene_world_1_1 = {world = defaultWorld, mario = defaultMario, enemies = [defaul
 walk : IVec -> Mario -> Mario
 walk {x} m = { m | vx <- toFloat x, dir <- if (x ==0) then m.dir else toFloat x}
 
+updateDenizen : Time -> Scene -> Denizen -> Denizen
+updateDenizen t scene = physics t scene . gravity t scene
+
+updateGoomba : Time -> Scene -> Denizen -> Maybe Denizen
+updateGoomba t s a = Just ((goombaAI s.world . updateDenizen t s) a)
+
 -- Apply all the things!
 step : Controls -> Scene -> Scene
 step (t,dir) scene = 
     let controlMario = walk dir . jump dir scene
-        updateDenizen = physics t scene . gravity t scene
-        updateGoomba = (goombaAI scene.world) . updateDenizen
-    in {scene | mario <- updateDenizen(controlMario scene.mario), enemies <- map (updateGoomba) scene.enemies}
+    in {scene | mario <- updateDenizen t scene (controlMario scene.mario), enemies <- justs (map (updateGoomba t scene) scene.enemies)}
 
 
 -- DISPLAY
@@ -64,12 +68,9 @@ render (w',h') scene =
 --        (asText mario) `above`
 --        (asText scene.enemies) `above`
         collage w' h' (
-            renderBackground (w,h) scene.world
-            ++
-            [toForm (image 35 35 src) |> move (mario.x, mario.y + 62 - h/2)]
-            ++
-            renderBlocks (w,h) scene.world
-            ++
+            renderBackground (w,h) scene.world ++
+            [toForm (image 35 35 src) |> move (mario.x, mario.y + 62 - h/2)] ++
+            renderBlocks (w,h) scene.world ++
             renderEnemies (w,h) scene.enemies
             )
 

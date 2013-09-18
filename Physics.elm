@@ -88,3 +88,6 @@ physics t s m =
         vy'' = if (m.y == y') then 0 else vy'
     in  { m | x <- x', y <- max 0 y', vy <- vy'', vx <- vx', jumpEnergy <- je'}
 
+-- true if two denizens overlap
+intersectDen : Denizen -> Denizen -> Bool
+intersectDen a b = False
