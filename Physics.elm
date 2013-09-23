@@ -1,11 +1,10 @@
-
 module Physics where
 
 import Dict
 
 type IVec = {x:Int, y:Int}
 -- Denizens are creatures affected by physics
-type Denizen = {x:Float, y:Float, vx:Float, vy:Float, dir:Float, jumpEnergy:Int}
+type Denizen = {x:Float, y:Float, vx:Float, vy:Float, dir:Float, jumpEnergy:Int, w:Float, h:Float}
 
 -- Worlds are blocky, and each position relates to a block index.
 -- All blocks are the same size (blockScale)
@@ -13,6 +12,9 @@ type World = Dict.Dict Int [Int]
 
 -- Game state
 type Scene = {world:World, mario:Denizen, enemies:[Denizen]}
+
+-- collisions of two denizens, from "Mario" point of view.
+data Collision = None | Stomp | Hit
 
 -- A few constants
 maxJump = 7
@@ -89,5 +91,12 @@ physics t s m =
     in  { m | x <- x', y <- max 0 y', vy <- vy'', vx <- vx', jumpEnergy <- je'}
 
 -- true if two denizens overlap
-intersectDen : Denizen -> Denizen -> Bool
-intersectDen a b = False
+intersectDen : Denizen -> Denizen -> Collision
+intersectDen a b =
+    let xs = abs((a.x + (a.w / 2)) - (b.x + (b.w / 2))) < b.w
+        ys = abs(a.y - b.y) < b.h {- y is measured from bottom -}
+        hit = xs && ys
+        isStomp = a.vy < 0 {- is a stomp only is 'mario' is falling -}
+    in if | not hit -> None
+          | isStomp -> Stomp
+          | otherwise -> Hit

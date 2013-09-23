@@ -21,12 +21,12 @@ defaultWorld = Dict.fromList [
 type Positional a = {a | x:Float, y:Float}
 
 -- MODEL
-defaultMario = { x=0, y=0, vx=0, vy=0, dir=1, jumpEnergy=maxJump}
+defaultMario = { x=0, y=0, vx=0, vy=0, dir=1, jumpEnergy=maxJump, w=35, h=35}
 
 goombaAI : World -> Denizen -> Denizen
 goombaAI w e = if (blockedX w {e|x <- e.x+e.dir}) then {e| dir <- (-e.dir), vx <- (-e.dir / 2)} else {e|vx<-(e.dir/2)}
 
-defaultGoomba = {x=-16,y=0,vx=-0.5, vy=0, dir=-1, jumpEnergy=0}
+defaultGoomba = {x=-16,y=0,vx=-0.5, vy=0, dir=-1, jumpEnergy=0, w=16, h=16}
 
 scene_world_1_1 = {world = defaultWorld, mario = defaultMario, enemies = [defaultGoomba]}
 {- To do:
@@ -45,7 +45,13 @@ updateDenizen : Time -> Scene -> Denizen -> Denizen
 updateDenizen t scene = physics t scene . gravity t scene
 
 updateGoomba : Time -> Scene -> Denizen -> Maybe Denizen
-updateGoomba t s a = Just ((goombaAI s.world . updateDenizen t s) a)
+updateGoomba t s a = 
+    let newG = (goombaAI s.world . updateDenizen t s) a
+        imp = intersectDen s.mario newG
+    in case imp of
+        None -> Just newG
+        Stomp -> Nothing
+        Hit -> Just newG
 
 -- Apply all the things!
 step : Controls -> Scene -> Scene
