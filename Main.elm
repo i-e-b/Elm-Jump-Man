@@ -7,7 +7,8 @@ import open Physics
 type Mario = Denizen
 type Controls = (Float, IVec)
 type Time = Float
-type Enemy = Denizen  {- Elm doesn't allow us to recursively define functions inside dependent types, so we have to fake it with Denizen & World, rather than scene and Enemy as we'd like -}
+type Enemy = Denizen  
+{- Elm doesn't allow us to recursively define functions inside dependent types, so we have to fake it with Denizen & World, rather than scene and Enemy as we'd like -}
 
 defaultWorld = Dict.fromList [
     (-8,[4]),(-6,[1,2,3,4,5,6])
