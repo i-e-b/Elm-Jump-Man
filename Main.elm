@@ -5,12 +5,12 @@ import open Sort
 
 -- Game entities
 type Denizen a = {a | x:Float, y:Float, vx:Float, vy:Float, dir:Float, jumpEnergy:Int}
-type Mario = Denizen a
+type Mario = Denizen {}
 type IVec = {x:Int, y:Int}
 type Controls = (Float, IVec)
 type Time = Float
 -- type AiActor = Scene -> Enemy -> Enemy
-type Enemy = Denizen a  {- Elm doesn't allow us to recursively define functions inside dependent types, so we have to fake it with Denizen & World, rather than scene and Enemy as we'd like -}
+type Enemy = Denizen {}  {- Elm doesn't allow us to recursively define functions inside dependent types, so we have to fake it with Denizen & World, rather than scene and Enemy as we'd like -}
 
 -- Worlds are blocky, and each position relates to a block index.
 -- All blocks are the same size (blockScale)
