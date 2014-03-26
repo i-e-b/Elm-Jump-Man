@@ -1,7 +1,7 @@
 import Keyboard
 import Window
 import Dict
-import open Physics
+import Physics (..)
 
 -- Game entities
 type Mario = Denizen
